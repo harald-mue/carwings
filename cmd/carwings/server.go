@@ -14,9 +14,12 @@ import (
 )
 
 func updateLoop(ctx context.Context, s *carwings.Session, interval time.Duration) {
+	fmt.Printf("Updating status (interval: %s)...", interval)
 	_, err := s.UpdateStatus()
 	if err != nil {
 		fmt.Printf("Error updating status: %s\n", err)
+	} else {
+		fmt.Printf("done.\n")
 	}
 
 	t := time.NewTicker(interval)
@@ -28,9 +31,12 @@ func updateLoop(ctx context.Context, s *carwings.Session, interval time.Duration
 			return
 
 		case <-t.C:
+			fmt.Printf("Updating status (interval: %s)...", interval)
 			_, err := s.UpdateStatus()
 			if err != nil {
 				fmt.Printf("Error updating status: %s\n", err)
+			} else {
+				fmt.Printf("done.\n")
 			}
 		}
 	}
@@ -66,6 +72,28 @@ func runServer(s *carwings.Session, cfg config, args []string) error {
 				return
 			}
 
+			json.NewEncoder(w).Encode(status)
+
+		default:
+			http.NotFound(w, r)
+			return
+		}
+	})
+
+	http.HandleFunc("/battery/update", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			fmt.Printf("Updating status (on request)...\n")
+			_, err := s.UpdateStatus()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			status, err := s.BatteryStatus()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 			json.NewEncoder(w).Encode(status)
 
 		default:

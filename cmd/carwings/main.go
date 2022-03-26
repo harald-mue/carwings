@@ -75,7 +75,7 @@ func main() {
 	fs.StringVar(&cfg.effunits, "effunits", unitskWhPerMile, "efficiency units to use (kWh/mile, kWh/km or kWh/100km). Defaults to kWh/mile.")
 	fs.StringVar(&carwings.BaseURL, "url", carwings.BaseURL, "base carwings api endpoint to use")
 	fs.DurationVar(&cfg.timeout, "timeout", 60*time.Second, "update timeout. Defaults to 60s")
-	fs.DurationVar(&cfg.serverUpdateInterval, "server-update-interval", 10*time.Minute, "interval to update battery info when running a server")
+	fs.DurationVar(&cfg.serverUpdateInterval, "server-update-interval", 10*time.Minute, "interval (ex. 0h30m15s) to update battery info when running a server")
 	fs.StringVar(&cfg.serverAddr, "server-addr", ":8040", "address for HTTP server to listen on")
 	fs.BoolVar(&carwings.Debug, "debug", false, "debug mode")
 	fs.Usage = usage(fs)

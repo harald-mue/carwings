@@ -64,6 +64,7 @@ The endpoints are:
 
 ```
 GET /battery
+GET /battery/update
 GET /climate
 POST /charging/on
 POST /climate/on

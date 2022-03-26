@@ -706,13 +706,20 @@ func (s *Session) BatteryStatus() (BatteryStatus, error) {
 	acOff, _ := batrec.CruisingRangeAcOff.Float64()
 
 	soc := batrec.BatteryStatus.SOC.Value
+	batteryLevelCapacity := float64(batrec.BatteryStatus.BatteryCapacity)
 	if soc == 0 {
-		soc = int(math.Round(float64(remaining) / float64(batrec.BatteryStatus.BatteryCapacity) * 100))
+		if batteryLevelCapacity >= 0.0 && batteryLevelCapacity <= 12.0 {
+			// Leaf using 12th bar system; present as 12ths; 5/12 etc.
+			// batteryLevelCapacity can be lower than 12 because of degradation
+			// we explicitly use 12 instead of batteryLevelCapacity
+			batteryLevelCapacity = 12.0
+		}
+		soc = int(math.Round(float64(remaining) / batteryLevelCapacity * 100))
 	}
 
 	bs := BatteryStatus{
 		Timestamp:          time.Time(batrec.NotificationDateAndTime).In(s.loc),
-		Capacity:           batrec.BatteryStatus.BatteryCapacity,
+		Capacity:           int(batteryLevelCapacity),
 		Remaining:          remaining,
 		RemainingWH:        remainingWH,
 		StateOfCharge:      soc,
