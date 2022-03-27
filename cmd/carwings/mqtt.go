@@ -67,7 +67,7 @@ func listen(uri *url.URL, topic string, s *carwings.Session, cfg config) {
 }
 
 func publishBatteryStatus(client mqtt.Client, topic string, status carwings.BatteryStatus, cfg config) {
-	retained := false
+	retained := true
 	client.Publish(fmt.Sprintf("%s/battery/timestamp", topic), 0, retained, status.Timestamp.String())
 	client.Publish(fmt.Sprintf("%s/battery/stateofcharge", topic), 0, retained, strconv.Itoa(status.StateOfCharge))
 	client.Publish(fmt.Sprintf("%s/battery/remaining", topic), 0, retained, strconv.Itoa(status.Remaining))
