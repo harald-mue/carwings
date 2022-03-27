@@ -21,6 +21,11 @@ type config struct {
 	timeout              time.Duration
 	serverUpdateInterval time.Duration
 	serverAddr           string
+	mqttAddr             string
+	mqttPort             string
+	mqttUsername         string
+	mqttPassword         string
+	mqttTopic            string
 }
 
 const (
@@ -55,6 +60,14 @@ func usage(fs *flag.FlagSet) func() {
 		fmt.Fprintf(os.Stderr, "  daily             Daily driving statistics\n")
 		fmt.Fprintf(os.Stderr, "  monthly <y> <m>   Monthly driving statistics\n")
 		fmt.Fprintf(os.Stderr, "  server            Listen for requests on port 8040\n")
+
+		fmt.Fprintf(os.Stderr, "  mqtt              Connect to a mqtt-server\n")
+		fmt.Fprintf(os.Stderr, "  mqtt-addr         MQTT server address\n")
+		fmt.Fprintf(os.Stderr, "  mqtt-port         MQTT server port\n")
+		fmt.Fprintf(os.Stderr, "  mqtt-username     MQTT username\n")
+		fmt.Fprintf(os.Stderr, "  mqtt-password     MQTT password\n")
+		fmt.Fprintf(os.Stderr, "  mqtt-topic        MQTT topic\n")
+
 		fmt.Fprintf(os.Stderr, "\n")
 	}
 }
@@ -71,12 +84,17 @@ func main() {
 	fs.StringVar(&password, "password", "", "carwings password")
 	fs.StringVar(&region, "region", carwings.RegionUSA, "carwings region. Defaults to US (NNA).")
 	fs.StringVar(&sessionFile, "session-file", "~/.carwings-session", "carwings session file")
-	fs.StringVar(&cfg.units, "units", unitsMiles, "units to use (miles or km). Defaults to miles.")
-	fs.StringVar(&cfg.effunits, "effunits", unitskWhPerMile, "efficiency units to use (kWh/mile, kWh/km or kWh/100km). Defaults to kWh/mile.")
+	fs.StringVar(&cfg.units, "units", unitsKM, "units to use (miles or km). Defaults to miles.")
+	fs.StringVar(&cfg.effunits, "effunits", unitskWhPer100Km, "efficiency units to use (kWh/mile, kWh/km or kWh/100km). Defaults to kWh/100km.")
 	fs.StringVar(&carwings.BaseURL, "url", carwings.BaseURL, "base carwings api endpoint to use")
 	fs.DurationVar(&cfg.timeout, "timeout", 60*time.Second, "update timeout. Defaults to 60s")
 	fs.DurationVar(&cfg.serverUpdateInterval, "server-update-interval", 10*time.Minute, "interval (ex. 0h30m15s) to update battery info when running a server")
 	fs.StringVar(&cfg.serverAddr, "server-addr", ":8040", "address for HTTP server to listen on")
+	fs.StringVar(&cfg.mqttAddr, "mqtt-addr", "127.0.0.1", "address of the MQTT server to connect. Defaults to 127.0.0.1")
+	fs.StringVar(&cfg.mqttPort, "mqtt-port", "1883", "port of the MQTT server to connect. Defaults to 1883")
+	fs.StringVar(&cfg.mqttUsername, "mqtt-username", "", "username required for connecting to the MQTT server")
+	fs.StringVar(&cfg.mqttPassword, "mqtt-password", "", "password required for connecting to the MQTT server")
+	fs.StringVar(&cfg.mqttTopic, "mqtt-topic", "leaf", "mqtt-topic to subscribe and publish to")
 	fs.BoolVar(&carwings.Debug, "debug", false, "debug mode")
 	fs.Usage = usage(fs)
 
@@ -134,6 +152,9 @@ func main() {
 
 	case "server":
 		run = runServer
+
+	case "mqtt":
+		run = runMqtt
 
 	case "monthly":
 		run = runMonthly
