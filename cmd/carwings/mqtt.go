@@ -13,8 +13,8 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
-func connect(clientId string, uri *url.URL) mqtt.Client {
-	opts := createClientOptions(clientId, uri)
+func connect(clientId string, uri *url.URL, topic string, s *carwings.Session, cfg config) mqtt.Client {
+	opts := createClientOptions(clientId, uri, topic, s, cfg)
 	client := mqtt.NewClient(opts)
 	token := client.Connect()
 	for !token.WaitTimeout(3 * time.Second) {
@@ -25,45 +25,53 @@ func connect(clientId string, uri *url.URL) mqtt.Client {
 	return client
 }
 
-func createClientOptions(clientId string, uri *url.URL) *mqtt.ClientOptions {
+func createClientOptions(clientId string, uri *url.URL, topic string, s *carwings.Session, cfg config) *mqtt.ClientOptions {
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(fmt.Sprintf("tcp://%s", uri.Host))
 	opts.SetUsername(uri.User.Username())
 	password, _ := uri.User.Password()
 	opts.SetPassword(password)
 	opts.SetClientID(clientId)
+	opts.SetAutoReconnect(true)
+	opts.SetConnectRetry(true)
+	opts.SetKeepAlive(30 * time.Second)
+
+	//set OnConnect handler as anonymous function
+	//after connected, subscribe to topic
+	opts.OnConnect = func(c mqtt.Client) {
+		// Subscribe for battery-update
+		batteryUpdateTopic := fmt.Sprintf("%s/battery/update", topic)
+		fmt.Printf("Client connected, subscribing to: %s\n", batteryUpdateTopic)
+		c.Subscribe(batteryUpdateTopic, 0, func(client mqtt.Client, msg mqtt.Message) {
+			fmt.Printf("Incoming mqtt message -> [%s] %s\n", msg.Topic(), string(msg.Payload()))
+
+			// Trigger battery update
+			if string(msg.Payload()) == "1" {
+
+				// Updtating battery status
+				_, errUpdate := s.UpdateStatus()
+				if errUpdate != nil {
+					fmt.Fprintf(os.Stderr, "Error during carwings battery-update: %s\n", errUpdate)
+				}
+
+				// Retrieve battery status
+				status, errStatus := s.BatteryStatus()
+				if errStatus != nil {
+					fmt.Fprintf(os.Stderr, "Error during carwings battery-update: %s\n", errUpdate)
+				}
+
+				// Publish battery status
+				publishBatteryStatus(client, topic, status, cfg)
+
+				// Send finished
+				client.Publish(batteryUpdateTopic, 0, false, "0")
+			}
+		})
+	}
+	opts.OnConnectionLost = func(c mqtt.Client, err error) {
+		fmt.Fprintf(os.Stderr, "Connection to mqtt-server lost: %s\n", err)
+	}
 	return opts
-}
-
-func listen(uri *url.URL, topic string, s *carwings.Session, cfg config) {
-	client := connect("carwings", uri)
-	// Subscribe for battery-update
-	batteryUpdateTopic := fmt.Sprintf("%s/battery/update", topic)
-	client.Subscribe(batteryUpdateTopic, 0, func(client mqtt.Client, msg mqtt.Message) {
-		fmt.Printf("Incoming mqtt message -> [%s] %s\n", msg.Topic(), string(msg.Payload()))
-
-		// Trigger battery update
-		if string(msg.Payload()) == "1" {
-
-			// Updtating battery status
-			_, errUpdate := s.UpdateStatus()
-			if errUpdate != nil {
-				fmt.Fprintf(os.Stderr, "Error during carwings battery-update: %s\n", errUpdate)
-			}
-
-			// Retrieve battery status
-			status, errStatus := s.BatteryStatus()
-			if errStatus != nil {
-				fmt.Fprintf(os.Stderr, "Error during carwings battery-update: %s\n", errUpdate)
-			}
-
-			// Publish battery status
-			publishBatteryStatus(client, topic, status, cfg)
-
-			// Send finished
-			client.Publish(batteryUpdateTopic, 0, false, "0")
-		}
-	})
 }
 
 func publishBatteryStatus(client mqtt.Client, topic string, status carwings.BatteryStatus, cfg config) {
@@ -89,9 +97,7 @@ func runMqtt(s *carwings.Session, cfg config, args []string) error {
 	} else if len(cfg.mqttUsername) > 0 {
 		uri.User = url.User(cfg.mqttUsername)
 	}
-
-	go listen(uri, cfg.mqttTopic, s, cfg)
-	client := connect("pub", uri)
+	client := connect("carwings", uri, cfg.mqttTopic, s, cfg)
 
 	if client.IsConnected() {
 		exit := make(chan string)
